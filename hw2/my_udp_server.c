@@ -1,3 +1,7 @@
+/*
+ * 20213342 박장한
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>

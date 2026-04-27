@@ -1,4 +1,8 @@
-#include <stdio.h>
+/*
+ * 20213342 박장한
+ */
+
+ #include <stdio.h>
 #include <string.h>
 #include <netdb.h>
 #include <unistd.h> 
@@ -54,20 +58,64 @@ int main(void)
     getsockname(client_socket, (struct sockaddr*) &client_addr, &addr_size);
     printf("Client is running on port %d\n", ntohs(client_addr.sin_port));
 
-	printf("Input sentence: ");
-    fgets(tx_message, 1024, stdin);
-    tx_message[strlen(tx_message) - 1] = 0;
-    fflush(stdin);
+    int option = 0;
+    char input_sentence[1024] = {0. };
 
-    // send a tx_message to the server.
-    write(client_socket, tx_message, strlen(tx_message));
+    while (1){
+        printf("<Menu>\n");
+        printf("1) convert text to UPPER-case\n");
+        printf("2) get server running time\n");
+        printf("3) get my IP address and port number\n");
+        printf("4) get server request count\n");
+        printf("5) exit\n");
+        printf("Input option: ");
 
-    // receive a reply from the server
-    rx_bytes = read(client_socket, rx_buffer, sizeof(rx_buffer));
-    rx_buffer[rx_bytes] = 0;
+        scanf("%d", &option);
+        getchar();
 
-    printf("\nReply from server: %s\n", rx_buffer);
-	
+        if (option == 5){
+            printf("Bye bye~\n");
+            break;
+        }
+
+        memset(tx_message, 0, sizeof(tx_message));
+        memset(rx_buffer, 0, sizeof(rx_buffer));
+
+        if (option == 1) {
+            printf("Input sentence: ");
+            fgets(input_sentence, sizeof(input_sentence), stdin);
+            input_sentence[strlen(input_sentence) - 1] = 0;
+            fflush(stdin);
+
+            sprintf(tx_message, "%d %s", option, input_sentence);
+        } else {
+            sprintf(tx_message, "%d", option);
+        }
+
+        // send a tx_message to the server.
+        write(client_socket, tx_message, strlen(tx_message));
+
+        // receive a reply from the server
+        rx_bytes = read(client_socket, rx_buffer, sizeof(rx_buffer));
+        if (rx_bytes <= 0) {
+            printf("Server disconnected.\n");
+            break;
+        } 
+
+        rx_buffer[rx_bytes] = 0;
+
+        if (option == 1) {
+            printf("Reply from server: %s\n", rx_buffer);
+        } else if (option == 2) {
+            printf("Reply from server: run time = %s\n", rx_buffer);
+        } else if (option == 3) {
+            printf("Reply from server: client IP = %s\n", rx_buffer);
+        } else if (option == 4) {
+            printf("Reply from server: number of requests served = %s\n", rx_buffer);
+        }
+
+
+    }
 	close(client_socket);
 
     return 0;

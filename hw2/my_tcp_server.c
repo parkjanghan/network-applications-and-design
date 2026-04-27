@@ -1,10 +1,16 @@
-#include <stdio.h>
+/*
+ * 20213342 박장한
+ */
+
+ #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h> 
 #include <sys/socket.h>
 #include <arpa/inet.h> 
 #include <netinet/in.h>
+
+#include <time.h>
 
 
 int main(void)
@@ -33,6 +39,10 @@ int main(void)
     // bind the socket with the server address.
     bind(server_socket, (struct sockaddr*) &server_addr, sizeof(server_addr));
 
+    // 시간 측정 시작 & 요청 Count 초기화
+    time_t start_time = time(NULL);
+    int request_count = 0;
+
     printf("Server is ready to receive on port %d\n", ntohs(server_addr.sin_port));
 
     // ready to listen to clients.
@@ -44,27 +54,64 @@ int main(void)
 		// accept clients and build connections.
 		client_socket = accept(server_socket, (struct sockaddr*) &client_addr, &addr_len);
 
-        // receive a request message from the client.
-		rx_bytes = read(client_socket, rx_buffer, 1024);
+        while(1){
+            memset(rx_buffer, 0, sizeof(rx_buffer));
+            memset(tx_buffer, 0, sizeof(tx_buffer));
 
-		// Does it have any error?
-		if (rx_bytes < 0) {
-			close(client_socket);
-			break;
-		}
-		rx_buffer[rx_bytes] = 0;
+            // receive a request message from the client.
+            rx_bytes = read(client_socket, rx_buffer, 1023);
 
-        printf("Request msg from ('%s', %d): %s\n",
-                inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), rx_buffer);
+            // Does it have any error?
+            if (rx_bytes <= 0) {
+                break;
+            }
+            rx_buffer[rx_bytes] = 0;
 
-        // Make a response message, then send to the client.
-		for (int index = 0; index < strlen(rx_buffer); ++index) {
-			tx_buffer[index] = toupper(rx_buffer[index]);
-		}
-        tx_buffer[strlen(rx_buffer)] = 0;
-		
-		// Send the message.
-		write(client_socket, tx_buffer, strlen(tx_buffer));
+            // 디버깅
+            printf("Request msg from ('%s', %d): %s\n",
+                    inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), rx_buffer);
+
+            // rx_bytes에 들어온 client의 입력값 수정
+            int option = 0;
+            char message[1024] = { 0, };
+
+            memset(tx_buffer, 0, sizeof(tx_buffer));
+
+            sscanf(rx_buffer, "%d %[^\n]", &option, message);
+
+            request_count++;
+
+            if (option == 1) {
+                for (int index = 0; index < strlen(message); ++index) {
+                    tx_buffer[index] = toupper(message[index]);
+                }
+                tx_buffer[strlen(message)] = 0;
+            }
+            else if (option == 2) {
+                time_t now = time(NULL);
+                int elapsed = (int)difftime(now, start_time);
+
+                int hours = elapsed / 3600;
+                int minutes = (elapsed % 3600) / 60;
+                int seconds = elapsed % 60;
+
+                sprintf(tx_buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+            }
+            else if (option == 3) {
+                sprintf(tx_buffer, "%s, port = %d",
+                        inet_ntoa(client_addr.sin_addr),
+                        ntohs(client_addr.sin_port));
+            }
+            else if (option == 4) {
+                sprintf(tx_buffer, "%d", request_count);
+            }
+            else {
+                sprintf(tx_buffer, "Invalid option");
+            }
+            
+            // Send the message.
+            write(client_socket, tx_buffer, strlen(tx_buffer));
+        }
 
         close(client_socket);
     }
