@@ -16,6 +16,7 @@
 static volatile sig_atomic_t g_stop = 0;
 
 void handle_sigint(int sig){
+    (void)sig;
     g_stop = 1;
 }
 
@@ -98,7 +99,8 @@ int main(void)
             request_count++;
 
             if (option == 1) {
-                for (int index = 0; index < strlen(message); ++index) {
+                size_t len = strlen(rx_buffer);
+                for (size_t index = 0; index < len; ++index) {
                     tx_buffer[index] = toupper(message[index]);
                 }
                 tx_buffer[strlen(message)] = 0;
