@@ -11,7 +11,13 @@
 #include <netinet/in.h>
 
 #include <time.h>
+#include <signal.h>
 
+static volatile sig_atomic_t g_stop = 0;
+
+void handle_sigint(int sig){
+    g_stop = 1;
+}
 
 int main(void)
 {
@@ -20,6 +26,11 @@ int main(void)
     static int client_socket = 0;
     struct sockaddr_in server_addr = { 0, };
     struct sockaddr_in client_addr = { 0, };
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handle_sigint;
+    sigaction(SIGINT, &sa, NULL);
     
     socklen_t addr_len = sizeof(struct sockaddr_in);
 
@@ -49,12 +60,17 @@ int main(void)
     listen(server_socket, 1);
 
     // Loop
-    while (1)
+    while (!g_stop)
     {
 		// accept clients and build connections.
 		client_socket = accept(server_socket, (struct sockaddr*) &client_addr, &addr_len);
 
-        while(1){
+        if (client_socket < 0) {
+            if (g_stop) break;
+            continue;
+        }
+
+        while(!g_stop){
             memset(rx_buffer, 0, sizeof(rx_buffer));
             memset(tx_buffer, 0, sizeof(tx_buffer));
 
@@ -117,6 +133,7 @@ int main(void)
     }
 
     close(server_socket);	
+    printf("Bye bye~ \n");
 
     return 0;
 }

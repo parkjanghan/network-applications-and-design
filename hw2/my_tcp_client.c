@@ -2,7 +2,7 @@
  * 20213342 박장한
  */
 
- #include <stdio.h>
+#include <stdio.h>
 #include <string.h>
 #include <netdb.h>
 #include <unistd.h> 
@@ -10,12 +10,25 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h>
 
+#include <time.h>
+#include <signal.h>
+
+static volatile sig_atomic_t g_stop = 0;
+
+void handle_sigint(int sig){
+    g_stop = 1;
+}
 
 int main(void)
 {
 	const char server_name[] = "127.0.0.1";
 	const int  server_port = 29999;
 	static int client_socket = 0;
+    
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handle_sigint;
+    sigaction(SIGINT, &sa, NULL);
 
     struct sockaddr_in server_addr = { 0, };
     struct sockaddr_in client_addr = { 0, };
@@ -28,6 +41,11 @@ int main(void)
     char tx_message[1024] = { 0, };
     char rx_buffer[1024] = { 0, };
 	int rx_bytes = 0;
+
+    // RTT 측정
+    struct timespec send_time;
+    struct timespec recv_time;
+    double rtt_ms = 0.0;
 
     // create a new socket (IPv4, TCP)
     client_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -59,9 +77,9 @@ int main(void)
     printf("Client is running on port %d\n", ntohs(client_addr.sin_port));
 
     int option = 0;
-    char input_sentence[1024] = {0. };
+    char input_sentence[1024] = {0, };
 
-    while (1){
+    while (!g_stop){
         printf("<Menu>\n");
         printf("1) convert text to UPPER-case\n");
         printf("2) get server running time\n");
@@ -71,10 +89,12 @@ int main(void)
         printf("Input option: ");
 
         scanf("%d", &option);
+        if (g_stop) {
+            break;
+        }
         getchar();
 
         if (option == 5){
-            printf("Bye bye~\n");
             break;
         }
 
@@ -84,19 +104,26 @@ int main(void)
         if (option == 1) {
             printf("Input sentence: ");
             fgets(input_sentence, sizeof(input_sentence), stdin);
+            if (g_stop) {
+                break;
+            }
             input_sentence[strlen(input_sentence) - 1] = 0;
-            fflush(stdin);
 
             sprintf(tx_message, "%d %s", option, input_sentence);
         } else {
             sprintf(tx_message, "%d", option);
         }
 
-        // send a tx_message to the server.
+        // send a tx_message to the server., 그 전에 RTT 측정
+        clock_gettime(CLOCK_MONOTONIC, &send_time);
+
         write(client_socket, tx_message, strlen(tx_message));
 
-        // receive a reply from the server
-        rx_bytes = read(client_socket, rx_buffer, sizeof(rx_buffer));
+        // receive a reply from the server, 끝나고 RTT 측정
+        rx_bytes = read(client_socket, rx_buffer, 1023);
+
+        clock_gettime(CLOCK_MONOTONIC, &recv_time);
+        
         if (rx_bytes <= 0) {
             printf("Server disconnected.\n");
             break;
@@ -114,9 +141,17 @@ int main(void)
             printf("Reply from server: number of requests served = %s\n", rx_buffer);
         }
 
+        rtt_ms =
+            (recv_time.tv_sec - send_time.tv_sec) * 1000.0 +
+            (recv_time.tv_nsec - send_time.tv_nsec) / 1000000.0;
+
+        printf("RTT = %.3f ms\n", rtt_ms);
+
 
     }
+
 	close(client_socket);
+    printf("Bye bye~ \n");
 
     return 0;
 }
